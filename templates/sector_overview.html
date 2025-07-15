@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+
+{% block title %}섹터 분석 - 미국 주식 분석 시스템{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1>
+                <i class="fas fa-layer-group me-2"></i>
+                섹터 분석 현황
+            </h1>
+            <button class="btn btn-primary" id="refreshData">
+                <i class="fas fa-sync-alt me-1"></i>새로고침
+            </button>
+        </div>
+        <p class="text-muted">11개 주요 섹터의 현재 상황과 매매 신호를 확인하세요</p>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                <h5 class="card-title">강세 섹터</h5>
+                <h2 class="text-success" id="bullishCount">0</h2>
+                <small class="text-muted">BUY/STRONG_BUY 신호</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-minus fa-2x text-warning mb-2"></i>
+                <h5 class="card-title">중립 섹터</h5>
+                <h2 class="text-warning" id="neutralCount">0</h2>
+                <small class="text-muted">HOLD 신호</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
+                <h5 class="card-title">약세 섹터</h5>
+                <h2 class="text-danger" id="bearishCount">0</h2>
+                <small class="text-muted">SELL 신호</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-2x text-info mb-2"></i>
+                <h5 class="card-title">평균 강도</h5>
+                <h2 class="text-info" id="avgStrength">0%</h2>
+                <small class="text-muted">50일선 위 평균</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sector Cards -->
+<div class="sector-grid" id="sectorGrid">
+    <!-- 섹터 카드들이 여기에 동적으로 추가됩니다 -->
+</div>
+
+<!-- Loading -->
+<div class="loading text-center" id="loadingIndicator">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">섹터 데이터를 불러오는 중...</p>
+</div>
+
+<!-- 섹터 상세 정보 모달 -->
+<div class="modal fade" id="sectorModal" tabindex="-1" aria-labelledby="sectorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sectorModalLabel">섹터 상세 정보</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="sectorModalBody">
+                <!-- 섹터 상세 정보가 여기에 표시됩니다 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                <button type="button" class="btn btn-primary" id="analyzeSectorBtn">섹터 분석하기</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let sectorData = [];
+let selectedSector = null;
+
+$(document).ready(function() {
+    loadSectorData();
+    
+    $('#refreshData').click(function() {
+        loadSectorData();
+    });
+    
+    $('#analyzeSectorBtn').click(function() {
+        if (selectedSector) {
+            window.location.href = `/stock-analysis?symbol=${selectedSector.symbol}`;
+        }
+    });
+});
+
+function loadSectorData() {
+    $('#loadingIndicator').show();
+    $('#sectorGrid').empty();
+    
+    $.get('/api/sector-data')
+        .done(function(data) {
+            $('#loadingIndicator').hide();
+            sectorData = data;
+            renderSectorCards(data);
+            updateSummaryCards(data);
+        })
+        .fail(function() {
+            $('#loadingIndicator').hide();
+            $('#sectorGrid').html('<div class="alert alert-danger">섹터 데이터를 불러올 수 없습니다.</div>');
+        });
+}
+
+function renderSectorCards(sectors) {
+    let html = '';
+    
+    sectors.forEach(function(sector) {
+        const signalClass = getSignalClass(sector.signal);
+        const signalIcon = getSignalIcon(sector.signal);
+        
+        html += `
+            <div class="sector-card" data-sector="${sector.symbol}">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">${sector.symbol}</h5>
+                    <span class="badge ${signalClass}">
+                        <i class="${signalIcon} me-1"></i>${sector.signal}
+                    </span>
+                </div>
+                
+                <h6 class="text-muted mb-3">${sector.name}</h6>
+                
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div class="text-center">
+                            <div class="progress mb-2" style="height: 8px;">
+                                <div class="progress-bar bg-primary" role="progressbar" 
+                                     style="width: ${sector['50_day_pct']}%"></div>
+                            </div>
+                            <small class="text-muted">50일선 위</small>
+                            <div class="fw-bold">${sector['50_day_pct']}%</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center">
+                            <div class="progress mb-2" style="height: 8px;">
+                                <div class="progress-bar bg-success" role="progressbar" 
+                                     style="width: ${sector['200_day_pct']}%"></div>
+                            </div>
+                            <small class="text-muted">200일선 위</small>
+                            <div class="fw-bold">${sector['200_day_pct']}%</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <small class="text-muted">주요 종목:</small>
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                        ${sector.top_holdings.map(stock => 
+                            `<span class="badge bg-light text-dark">${stock}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showSectorDetail('${sector.symbol}')">
+                        <i class="fas fa-info-circle me-1"></i>상세보기
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="analyzeSector('${sector.symbol}')">
+                        <i class="fas fa-chart-line me-1"></i>분석하기
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    $('#sectorGrid').html(html);
+}
+
+function updateSummaryCards(sectors) {
+    let bullishCount = 0;
+    let neutralCount = 0;
+    let bearishCount = 0;
+    let totalStrength = 0;
+    
+    sectors.forEach(function(sector) {
+        switch(sector.signal) {
+            case 'BUY':
+            case 'STRONG_BUY':
+                bullishCount++;
+                break;
+            case 'SELL':
+                bearishCount++;
+                break;
+            default:
+                neutralCount++;
+        }
+        totalStrength += sector['50_day_pct'];
+    });
+    
+    $('#bullishCount').text(bullishCount);
+    $('#neutralCount').text(neutralCount);
+    $('#bearishCount').text(bearishCount);
+    $('#avgStrength').text(Math.round(totalStrength / sectors.length) + '%');
+}
+
+function showSectorDetail(symbol) {
+    const sector = sectorData.find(s => s.symbol === symbol);
+    if (!sector) return;
+    
+    selectedSector = sector;
+    
+    const signalClass = getSignalClass(sector.signal);
+    const signalIcon = getSignalIcon(sector.signal);
+    
+    const modalBody = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>섹터 정보</h6>
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>티커:</strong></td>
+                        <td>${sector.symbol}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>섹터명:</strong></td>
+                        <td>${sector.name}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>매매 신호:</strong></td>
+                        <td><span class="badge ${signalClass}"><i class="${signalIcon} me-1"></i>${sector.signal}</span></td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>기술적 분석</h6>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>50일선 위 비율:</span>
+                        <span class="fw-bold">${sector['50_day_pct']}%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${sector['50_day_pct']}%"></div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>200일선 위 비율:</span>
+                        <span class="fw-bold">${sector['200_day_pct']}%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-success" role="progressbar" style="width: ${sector['200_day_pct']}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h6>주요 구성 종목</h6>
+            <div class="row">
+                ${sector.top_holdings.map((stock, index) => 
+                    `<div class="col-md-3 col-6 mb-2">
+                        <button class="btn btn-outline-secondary btn-sm w-100" onclick="analyzeStock('${stock}')">
+                            ${stock}
+                        </button>
+                    </div>`
+                ).join('')}
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <h6>투자 의견</h6>
+            <div class="alert ${getAlertClass(sector.signal)}">
+                ${getInvestmentAdvice(sector)}
+            </div>
+        </div>
+    `;
+    
+    $('#sectorModalLabel').text(`${sector.symbol} - ${sector.name}`);
+    $('#sectorModalBody').html(modalBody);
+    $('#sectorModal').modal('show');
+}
+
+function analyzeSector(symbol) {
+    window.location.href = `/stock-analysis?symbol=${symbol}`;
+}
+
+function analyzeStock(symbol) {
+    window.location.href = `/stock-analysis?symbol=${symbol}`;
+}
+
+function getSignalClass(signal) {
+    switch(signal) {
+        case 'BUY': return 'signal-buy';
+        case 'STRONG_BUY': return 'signal-strong-buy';
+        case 'SELL': return 'signal-sell';
+        default: return 'signal-hold';
+    }
+}
+
+function getSignalIcon(signal) {
+    switch(signal) {
+        case 'BUY': return 'fas fa-arrow-up';
+        case 'STRONG_BUY': return 'fas fa-arrow-up';
+        case 'SELL': return 'fas fa-arrow-down';
+        default: return 'fas fa-minus';
+    }
+}
+
+function getAlertClass(signal) {
+    switch(signal) {
+        case 'BUY': return 'alert-success';
+        case 'STRONG_BUY': return 'alert-success';
+        case 'SELL': return 'alert-danger';
+        default: return 'alert-warning';
+    }
+}
+
+function getInvestmentAdvice(sector) {
+    const advice = {
+        'STRONG_BUY': `${sector.name} 섹터는 매우 강한 상승 신호를 보이고 있습니다. 50일선 위 비율 ${sector['50_day_pct']}%, 200일선 위 비율 ${sector['200_day_pct']}%로 강세장을 나타내고 있습니다.`,
+        'BUY': `${sector.name} 섹터는 상승 신호를 보이고 있습니다. 투자를 고려해볼 만한 시점입니다.`,
+        'SELL': `${sector.name} 섹터는 약세 신호를 보이고 있습니다. 50일선 위 비율 ${sector['50_day_pct']}%로 주의가 필요합니다.`,
+        'HOLD': `${sector.name} 섹터는 중립적인 상황입니다. 추가적인 신호를 기다리는 것이 좋겠습니다.`
+    };
+    
+    return advice[sector.signal] || advice['HOLD'];
+}
+</script>
+{% endblock %}

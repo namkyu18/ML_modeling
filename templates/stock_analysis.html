@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+
+{% block title %}주식 분석 - 미국 주식 분석 시스템{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>
+            <i class="fas fa-search me-2"></i>
+            주식 분석
+        </h1>
+        <p class="text-muted">개별 주식의 상세 분석과 매매 신호를 확인하세요</p>
+    </div>
+</div>
+
+<!-- 검색 및 설정 -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="stockSymbol" class="form-label">주식 티커</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="stockSymbol" 
+                                   placeholder="예: AAPL, MSFT, GOOGL">
+                            <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div id="searchSuggestions" class="mt-2"></div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="timePeriod" class="form-label">분석 기간</label>
+                        <select class="form-select" id="timePeriod">
+                            <option value="6m">6개월</option>
+                            <option value="1y" selected>1년</option>
+                            <option value="2y">2년</option>
+                            <option value="5y">5년</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary d-block w-100" id="analyzeBtn">
+                            <i class="fas fa-chart-line me-1"></i>분석하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">빠른 분석</h6>
+                <div class="d-flex flex-wrap gap-1">
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="AAPL">AAPL</button>
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="MSFT">MSFT</button>
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="GOOGL">GOOGL</button>
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="TSLA">TSLA</button>
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="AMZN">AMZN</button>
+                    <button class="btn btn-outline-primary btn-sm quick-analyze" data-symbol="NVDA">NVDA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 로딩 표시 -->
+<div class="loading text-center" id="loadingIndicator">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">주식 데이터를 분석하는 중...</p>
+</div>
+
+<!-- 분석 결과 -->
+<div id="analysisResults" style="display: none;">
+    <!-- 주식 정보 헤더 -->
+    <div class="stock-info mb-4" id="stockInfo">
+        <!-- 주식 기본 정보가 여기에 표시됩니다 -->
+    </div>
+    
+    <!-- 매매 신호 및 지표 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="indicator-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">매매 신호</h6>
+                        <span class="badge" id="tradingSignal">-</span>
+                    </div>
+                    <i class="fas fa-signal fa-2x text-muted"></i>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">신호 강도: </small>
+                    <span id="signalStrength">-</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="indicator-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">RSI</h6>
+                        <h4 id="rsiValue">-</h4>
+                    </div>
+                    <i class="fas fa-chart-line fa-2x text-muted"></i>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted" id="rsiStatus">-</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="indicator-card">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">거래량</h6>
+                        <h4 id="volumeValue">-</h4>
+                    </div>
+                    <i class="fas fa-chart-bar fa-2x text-muted"></i>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">평균 대비: </small>
+                    <span id="volumeRatio">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 기술적 지표 상세 -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        이동평균선
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">20일선</small>
+                                <div class="fw-bold" id="sma20">-</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">50일선</small>
+                                <div class="fw-bold" id="sma50">-</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">200일선</small>
+                                <div class="fw-bold" id="sma200">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-arrows-alt-v me-2"></i>
+                        볼린저 밴드
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">상단</small>
+                                <div class="fw-bold" id="bbUpper">-</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">현재가</small>
+                                <div class="fw-bold" id="currentPrice">-</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-center">
+                                <small class="text-muted">하단</small>
+                                <div class="fw-bold" id="bbLower">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 매매 신호 근거 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        매매 신호 근거
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-success">매수 신호 (<span id="buySignalCount">0</span>개)</h6>
+                            <ul id="buySignalList" class="list-unstyled">
+                                <!-- 매수 신호 목록 -->
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-danger">매도 신호 (<span id="sellSignalCount">0</span>개)</h6>
+                            <ul id="sellSignalList" class="list-unstyled">
+                                <!-- 매도 신호 목록 -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 차트 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-candlestick me-2"></i>
+                        기술적 분석 차트
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <div id="stockChart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 에러 메시지 -->
+<div id="errorMessage" class="alert alert-danger" style="display: none;">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <span id="errorText"></span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // URL 파라미터에서 symbol 확인
+    const urlParams = new URLSearchParams(window.location.search);
+    const symbol = urlParams.get('symbol');
+    if (symbol) {
+        $('#stockSymbol').val(symbol);
+        analyzeStock();
+    }
+    
+    // 이벤트 리스너
+    $('#analyzeBtn').click(analyzeStock);
+    $('#stockSymbol').keypress(function(e) {
+        if (e.which === 13) {
+            analyzeStock();
+        }
+    });
+    
+    // 검색 기능
+    $('#stockSymbol').on('input', function() {
+        const query = $(this).val();
+        if (query.length > 1) {
+            searchStock(query);
+        } else {
+            $('#searchSuggestions').empty();
+        }
+    });
+    
+    // 빠른 분석 버튼
+    $('.quick-analyze').click(function() {
+        const symbol = $(this).data('symbol');
+        $('#stockSymbol').val(symbol);
+        analyzeStock();
+    });
+    
+    // 기간 변경 시 자동 재분석
+    $('#timePeriod').change(function() {
+        const symbol = $('#stockSymbol').val().trim();
+        if (symbol) {
+            analyzeStock();
+        }
+    });
+});
+
+function searchStock(query) {
+    $.get('/api/search-stock', { q: query })
+        .done(function(data) {
+            let html = '';
+            data.forEach(function(stock) {
+                html += `
+                    <div class="suggestion-item p-2 border-bottom cursor-pointer" 
+                         onclick="selectStock('${stock.symbol}')">
+                        <strong>${stock.symbol}</strong> - ${stock.name}
+                        <small class="text-muted">(${stock.type})</small>
+                    </div>
+                `;
+            });
+            $('#searchSuggestions').html(html);
+        });
+}
+
+function selectStock(symbol) {
+    $('#stockSymbol').val(symbol);
+    $('#searchSuggestions').empty();
+    analyzeStock();
+}
+
+function analyzeStock() {
+    const symbol = $('#stockSymbol').val().trim().toUpperCase();
+    const period = $('#timePeriod').val();
+    
+    if (!symbol) {
+        showError('주식 티커를 입력해주세요.');
+        return;
+    }
+    
+    // UI 초기화
+    $('#loadingIndicator').show();
+    $('#analysisResults').hide();
+    $('#errorMessage').hide();
+    
+    // API 호출
+    $.ajax({
+        url: '/api/analyze-stock',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            symbol: symbol,
+            period: period
+        }),
+        success: function(data) {
+            $('#loadingIndicator').hide();
+            displayAnalysisResults(data);
+        },
+        error: function(xhr) {
+            $('#loadingIndicator').hide();
+            const error = xhr.responseJSON?.error || '분석 중 오류가 발생했습니다.';
+            showError(error);
+        }
+    });
+}
+
+function displayAnalysisResults(data) {
+    // 주식 정보 헤더
+    const changeClass = data.change_pct >= 0 ? 'text-success' : 'text-danger';
+    const changeIcon = data.change_pct >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+    
+    $('#stockInfo').html(`
+        <div class="row">
+            <div class="col-md-8">
+                <h2>${data.symbol} - ${data.company_name}</h2>
+                <p class="mb-2">
+                    <span class="badge bg-secondary">${data.sector}</span>
+                </p>
+                <div class="row">
+                    <div class="col-md-3">
+                        <h3 class="mb-0">$${data.current_price.toFixed(2)}</h3>
+                        <small class="${changeClass}">
+                            <i class="${changeIcon} me-1"></i>
+                            ${data.change_pct.toFixed(2)}%
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">거래량</small>
+                        <div class="fw-bold">${data.volume.toLocaleString()}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="mb-2">
+                    <span class="badge ${getSignalClass(data.signal)} fs-6">
+                        ${data.signal}
+                    </span>
+                </div>
+                <small class="text-muted">매매 신호</small>
+            </div>
+        </div>
+    `);
+    
+    // 매매 신호 및 지표
+    $('#tradingSignal').removeClass().addClass('badge').addClass(getSignalClass(data.signal)).text(data.signal);
+    $('#signalStrength').text(data.strength + '/10');
+    
+    // RSI
+    $('#rsiValue').text(data.rsi.toFixed(1));
+    let rsiStatus = 'Normal';
+    if (data.rsi < 30) rsiStatus = 'Oversold';
+    else if (data.rsi > 70) rsiStatus = 'Overbought';
+    $('#rsiStatus').text(rsiStatus);
+    
+    // 거래량
+    $('#volumeValue').text(data.volume.toLocaleString());
+    $('#volumeRatio').text(data.volume_ratio.toFixed(2) + 'x');
+    
+    // 이동평균선
+    $('#sma20').text('$' + data.sma_20.toFixed(2));
+    $('#sma50').text('$' + data.sma_50.toFixed(2));
+    $('#sma200').text('$' + data.sma_200.toFixed(2));
+    
+    // 볼린저 밴드
+    $('#bbUpper').text('$' + data.bb_upper.toFixed(2));
+    $('#currentPrice').text('$' + data.current_price.toFixed(2));
+    $('#bbLower').text('$' + data.bb_lower.toFixed(2));
+    
+    // 매매 신호 근거
+    displaySignalReasons(data.reasons, data.buy_signals, data.sell_signals);
+    
+    // 차트 표시
+    displayChart(data.chart);
+    
+    // 결과 표시
+    $('#analysisResults').show();
+    
+    // URL 업데이트
+    const newUrl = `${window.location.pathname}?symbol=${data.symbol}`;
+    history.pushState(null, '', newUrl);
+}
+
+function displaySignalReasons(reasons, buyCount, sellCount) {
+    $('#buySignalCount').text(buyCount);
+    $('#sellSignalCount').text(sellCount);
+    
+    let buySignals = '';
+    let sellSignals = '';
+    
+    reasons.forEach(function(reason) {
+        if (reason.includes('매수') || reason.includes('상승') || reason.includes('골든크로스') || 
+            reason.includes('과매도') || reason.includes('하단 밴드') || reason.includes('강세')) {
+            buySignals += `<li><i class="fas fa-check text-success me-2"></i>${reason}</li>`;
+        } else {
+            sellSignals += `<li><i class="fas fa-times text-danger me-2"></i>${reason}</li>`;
+        }
+    });
+    
+    $('#buySignalList').html(buySignals || '<li class="text-muted">매수 신호 없음</li>');
+    $('#sellSignalList').html(sellSignals || '<li class="text-muted">매도 신호 없음</li>');
+}
+
+function displayChart(chartData) {
+    if (chartData) {
+        const chart = JSON.parse(chartData);
+        Plotly.newPlot('stockChart', chart.data, chart.layout, {responsive: true});
+    }
+}
+
+function getSignalClass(signal) {
+    switch(signal) {
+        case 'BUY': return 'signal-buy';
+        case 'STRONG_BUY': return 'signal-strong-buy';
+        case 'SELL': return 'signal-sell';
+        default: return 'signal-hold';
+    }
+}
+
+function showError(message) {
+    $('#errorText').text(message);
+    $('#errorMessage').show();
+    $('#analysisResults').hide();
+}
+
+// 클릭 외부 영역 클릭 시 검색 제안 숨기기
+$(document).click(function(e) {
+    if (!$(e.target).closest('#stockSymbol, #searchSuggestions').length) {
+        $('#searchSuggestions').empty();
+    }
+});
+</script>
+
+<style>
+.suggestion-item {
+    cursor: pointer;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.suggestion-item:hover {
+    background-color: #e9ecef;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+#searchSuggestions {
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+}
+</style>
+{% endblock %}

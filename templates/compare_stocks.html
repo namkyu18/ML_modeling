@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}주식 비교 - 미국 주식 분석 시스템{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>
+            <i class="fas fa-balance-scale me-2"></i>
+            주식 비교 분석
+        </h1>
+        <p class="text-muted">여러 주식을 동시에 비교하여 투자 우선순위를 결정하세요</p>
+    </div>
+</div>
+
+<!-- 주식 입력 -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-plus me-2"></i>
+                    비교할 주식 선택
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="newStockSymbol" class="form-label">주식 티커 입력</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="newStockSymbol" 
+                                   placeholder="예: AAPL, MSFT, GOOGL">
+                            <button class="btn btn-primary" type="button" id="addStockBtn">
+                                <i class="fas fa-plus"></i> 추가
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="comparePeriod" class="form-label">분석 기간</label>
+                        <select class="form-select" id="comparePeriod">
+                            <option value="3m">3개월</option>
+                            <option value="6m" selected>6개월</option>
+                            <option value="1y">1년</option>
+                            <option value="2y">2년</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-success d-block w-100" id="compareBtn">
+                            <i class="fas fa-balance-scale me-1"></i>비교 분석
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 선택된 주식들 -->
+                <div class="mt-3">
+                    <label class="form-label">선택된 주식들:</label>
+                    <div id="selectedStocks" class="d-flex flex-wrap gap-2">
+                        <!-- 선택된 주식 태그들이 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-star me-2"></i>
+                    추천 조합
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <button class="btn btn-outline-info btn-sm w-100 mb-2" onclick="loadPreset('tech')">
+                        <i class="fas fa-microchip me-1"></i>
+                        테크 주식 (AAPL, MSFT, GOOGL, NVDA)
+                    </button>
+                    <button class="btn btn-outline-success btn-sm w-100 mb-2" onclick="loadPreset('sectors')">
+                        <i class="fas fa-layer-group me-1"></i>
+                        주요 섹터 (XLK, XLF, XLV, XLY)
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm w-100 mb-2" onclick="loadPreset('growth')">
+                        <i class="fas fa-chart-line me-1"></i>
+                        성장주 (TSLA, AMZN, META, NFLX)
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm w-100" onclick="loadPreset('dividend')">
+                        <i class="fas fa-coins me-1"></i>
+                        배당주 (JNJ, PG, KO, WMT)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 로딩 표시 -->
+<div class="loading text-center" id="loadingIndicator">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">주식 비교 분석 중...</p>
+</div>
+
+<!-- 비교 결과 -->
+<div id="comparisonResults" style="display: none;">
+    <!-- 요약 통계 -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-thumbs-up fa-2x text-success mb-2"></i>
+                    <h5 class="card-title">매수 추천</h5>
+                    <h2 class="text-success" id="buyCount">0</h2>
+                    <small class="text-muted">종목 수</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-hand-paper fa-2x text-warning mb-2"></i>
+                    <h5 class="card-title">관망</h5>
+                    <h2 class="text-warning" id="holdCount">0</h2>
+                    <small class="text-muted">종목 수</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-thumbs-down fa-2x text-danger mb-2"></i>
+                    <h5 class="card-title">매도 추천</h5>
+                    <h2 class="text-danger" id="sellCount">0</h2>
+                    <small class="text-muted">종목 수</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+                    <h5 class="card-title">평균 수익률</h5>
+                    <h2 class="text-info" id="avgReturn">0%</h2>
+                    <small class="text-muted">기간 내</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 비교 테이블 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-table me-2"></i>
+                        상세 비교 결과
+                    </h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="sortTable('signal')">
+                            <i class="fas fa-sort me-1"></i>신호순
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="sortTable('return')">
+                            <i class="fas fa-percentage me-1"></i>수익률순
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="comparisonTable">
+                            <thead>
+                                <tr>
+                                    <th>순위</th>
+                                    <th>종목</th>
+                                    <th>현재가</th>
+                                    <th>수익률</th>
+                                    <th>매매신호</th>
+                                    <th>신호강도</th>
+                                    <th>RSI</th>
+                                    <th>거래량비율</th>
+                                    <th>액션</th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparisonTableBody">
+                                <!-- 비교 결과가 여기에 표시됩니다 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 투자 추천 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        투자 추천 의견
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="investmentRecommendation">
+                        <!-- 투자 추천이 여기에 표시됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 에러 메시지 -->
+<div id="errorMessage" class="alert alert-danger" style="display: none;">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <span id="errorText"></span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedStocks = [];
+let comparisonData = [];
+
+$(document).ready(function() {
+    // 이벤트 리스너
+    $('#addStockBtn').click(addStock);
+    $('#compareBtn').click(compareStocks);
+    $('#newStockSymbol').keypress(function(e) {
+        if (e.which === 13) {
+            addStock();
+        }
+    });
+    
+    // 초기 주식 몇 개 추가
+    selectedStocks = ['AAPL', 'MSFT', 'GOOGL'];
+    updateSelectedStocks();
+});
+
+function addStock() {
+    const symbol = $('#newStockSymbol').val().trim().toUpperCase();
+    
+    if (!symbol) {
+        alert('주식 티커를 입력해주세요.');
+        return;
+    }
+    
+    if (selectedStocks.includes(symbol)) {
+        alert('이미 선택된 주식입니다.');
+        return;
+    }
+    
+    if (selectedStocks.length >= 10) {
+        alert('최대 10개까지 선택할 수 있습니다.');
+        return;
+    }
+    
+    selectedStocks.push(symbol);
+    updateSelectedStocks();
+    $('#newStockSymbol').val('');
+}
+
+function removeStock(symbol) {
+    selectedStocks = selectedStocks.filter(s => s !== symbol);
+    updateSelectedStocks();
+}
+
+function updateSelectedStocks() {
+    let html = '';
+    selectedStocks.forEach(function(symbol) {
+        html += `
+            <span class="badge bg-primary fs-6 me-2 mb-2">
+                ${symbol}
+                <button type="button" class="btn-close btn-close-white ms-1" 
+                        onclick="removeStock('${symbol}')" aria-label="Close"></button>
+            </span>
+        `;
+    });
+    
+    if (selectedStocks.length === 0) {
+        html = '<small class="text-muted">주식을 추가해주세요.</small>';
+    }
+    
+    $('#selectedStocks').html(html);
+}
+
+function loadPreset(type) {
+    const presets = {
+        'tech': ['AAPL', 'MSFT', 'GOOGL', 'NVDA'],
+        'sectors': ['XLK', 'XLF', 'XLV', 'XLY'],
+        'growth': ['TSLA', 'AMZN', 'META', 'NFLX'],
+        'dividend': ['JNJ', 'PG', 'KO', 'WMT']
+    };
+    
+    selectedStocks = presets[type] || [];
+    updateSelectedStocks();
+}
+
+function compareStocks() {
+    if (selectedStocks.length < 2) {
+        alert('비교하려면 최소 2개의 주식을 선택해야 합니다.');
+        return;
+    }
+    
+    const period = $('#comparePeriod').val();
+    
+    // UI 초기화
+    $('#loadingIndicator').show();
+    $('#comparisonResults').hide();
+    $('#errorMessage').hide();
+    
+    // API 호출
+    $.ajax({
+        url: '/api/compare-stocks',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            symbols: selectedStocks,
+            period: period
+        }),
+        success: function(data) {
+            $('#loadingIndicator').hide();
+            comparisonData = data.results;
+            displayComparisonResults(data.results);
+        },
+        error: function(xhr) {
+            $('#loadingIndicator').hide();
+            const error = xhr.responseJSON?.error || '비교 분석 중 오류가 발생했습니다.';
+            showError(error);
+        }
+    });
+}
+
+function displayComparisonResults(results) {
+    // 요약 통계 업데이트
+    let buyCount = 0;
+    let holdCount = 0;
+    let sellCount = 0;
+    let totalReturn = 0;
+    
+    results.forEach(function(stock) {
+        switch(stock.signal) {
+            case 'BUY':
+            case 'STRONG_BUY':
+                buyCount++;
+                break;
+            case 'SELL':
+                sellCount++;
+                break;
+            default:
+                holdCount++;
+        }
+        totalReturn += stock.change_pct;
+    });
+    
+    $('#buyCount').text(buyCount);
+    $('#holdCount').text(holdCount);
+    $('#sellCount').text(sellCount);
+    $('#avgReturn').text((totalReturn / results.length).toFixed(2) + '%');
+    
+    // 테이블 업데이트
+    updateComparisonTable(results);
+    
+    // 투자 추천 생성
+    generateInvestmentRecommendation(results);
+    
+    // 결과 표시
+    $('#comparisonResults').show();
+}
+
+function updateComparisonTable(results) {
+    let html = '';
+    
+    results.forEach(function(stock, index) {
+        const signalClass = getSignalClass(stock.signal);
+        const returnClass = stock.change_pct >= 0 ? 'text-success' : 'text-danger';
+        const returnIcon = stock.change_pct >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
+        
+        html += `
+            <tr>
+                <td><span class="badge bg-secondary">${index + 1}</span></td>
+                <td><strong>${stock.symbol}</strong></td>
+                <td>$${stock.current_price.toFixed(2)}</td>
+                <td class="${returnClass}">
+                    <i class="${returnIcon} me-1"></i>
+                    ${stock.change_pct.toFixed(2)}%
+                </td>
+                <td>
+                    <span class="badge ${signalClass}">
+                        ${stock.signal}
+                    </span>
+                </td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: ${(stock.strength / 10) * 100}%">
+                            ${stock.strength}/10
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="${getRSIClass(stock.rsi)}">
+                        ${stock.rsi.toFixed(1)}
+                    </span>
+                </td>
+                <td>
+                    <span class="${getVolumeClass(stock.volume_ratio)}">
+                        ${stock.volume_ratio.toFixed(2)}x
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="analyzeStock('${stock.symbol}')">
+                        <i class="fas fa-chart-line me-1"></i>분석
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    $('#comparisonTableBody').html(html);
+}
+
+function generateInvestmentRecommendation(results) {
+    const buyStocks = results.filter(s => s.signal === 'BUY' || s.signal === 'STRONG_BUY');
+    const sellStocks = results.filter(s => s.signal === 'SELL');
+    
+    let html = '<div class="row">';
+    
+    // 매수 추천
+    if (buyStocks.length > 0) {
+        html += '<div class="col-md-6">';
+        html += '<div class="alert alert-success">';
+        html += '<h6><i class="fas fa-thumbs-up me-2"></i>매수 추천</h6>';
+        html += '<ul class="mb-0">';
+        buyStocks.forEach(function(stock) {
+            html += `<li><strong>${stock.symbol}</strong> - 신호강도: ${stock.strength}/10</li>`;
+        });
+        html += '</ul>';
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    // 매도 추천
+    if (sellStocks.length > 0) {
+        html += '<div class="col-md-6">';
+        html += '<div class="alert alert-danger">';
+        html += '<h6><i class="fas fa-thumbs-down me-2"></i>매도 추천</h6>';
+        html += '<ul class="mb-0">';
+        sellStocks.forEach(function(stock) {
+            html += `<li><strong>${stock.symbol}</strong> - 신호강도: ${stock.strength}/10</li>`;
+        });
+        html += '</ul>';
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    
+    // 전체 포트폴리오 조언
+    html += '<div class="alert alert-info">';
+    html += '<h6><i class="fas fa-info-circle me-2"></i>포트폴리오 조언</h6>';
+    
+    if (buyStocks.length > sellStocks.length) {
+        html += '<p>현재 선택한 주식들 중 매수 신호가 우세합니다. 점진적 매수를 고려해보세요.</p>';
+    } else if (sellStocks.length > buyStocks.length) {
+        html += '<p>현재 선택한 주식들 중 매도 신호가 우세합니다. 포트폴리오 재조정을 고려해보세요.</p>';
+    } else {
+        html += '<p>현재 선택한 주식들은 혼재된 신호를 보이고 있습니다. 신중한 접근이 필요합니다.</p>';
+    }
+    
+    html += '</div>';
+    
+    $('#investmentRecommendation').html(html);
+}
+
+function sortTable(type) {
+    let sortedData = [...comparisonData];
+    
+    if (type === 'signal') {
+        const signalOrder = {'BUY': 1, 'STRONG_BUY': 0, 'HOLD': 2, 'SELL': 3};
+        sortedData.sort((a, b) => {
+            const aOrder = signalOrder[a.signal] || 2;
+            const bOrder = signalOrder[b.signal] || 2;
+            if (aOrder === bOrder) {
+                return b.strength - a.strength;
+            }
+            return aOrder - bOrder;
+        });
+    } else if (type === 'return') {
+        sortedData.sort((a, b) => b.change_pct - a.change_pct);
+    }
+    
+    updateComparisonTable(sortedData);
+}
+
+function analyzeStock(symbol) {
+    window.location.href = `/stock-analysis?symbol=${symbol}`;
+}
+
+function getSignalClass(signal) {
+    switch(signal) {
+        case 'BUY': return 'signal-buy';
+        case 'STRONG_BUY': return 'signal-strong-buy';
+        case 'SELL': return 'signal-sell';
+        default: return 'signal-hold';
+    }
+}
+
+function getRSIClass(rsi) {
+    if (rsi < 30) return 'text-success fw-bold';
+    if (rsi > 70) return 'text-danger fw-bold';
+    return 'text-muted';
+}
+
+function getVolumeClass(ratio) {
+    if (ratio > 1.5) return 'text-success fw-bold';
+    if (ratio < 0.5) return 'text-danger fw-bold';
+    return 'text-muted';
+}
+
+function showError(message) {
+    $('#errorText').text(message);
+    $('#errorMessage').show();
+    $('#comparisonResults').hide();
+}
+</script>
+{% endblock %}
